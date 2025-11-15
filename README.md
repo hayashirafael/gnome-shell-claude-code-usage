@@ -7,6 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-45%20|%2046-blue)](https://www.gnome.org/)
 
+> 📘 **For developers & AI assistants**: See [CLAUDE.md](CLAUDE.md) for comprehensive project context and architecture
+
 </div>
 
 ---
