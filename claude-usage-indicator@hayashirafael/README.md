@@ -28,11 +28,24 @@ Monitor your Claude Code token usage directly from the GNOME top bar.
 
 ## Installation
 
-### Quick Install
+### Quick Install (Production)
 
 ```bash
 cd claude-usage-indicator@hayashirafael
 ./install.sh
+```
+
+### Development Install (Recommended for Development)
+
+```bash
+cd claude-usage-indicator@hayashirafael
+./install-dev.sh
+```
+
+This creates a symbolic link, so any changes you make to the source files are immediately reflected. After making changes, just run:
+
+```bash
+./dev-reload.sh
 ```
 
 ### Manual Install
