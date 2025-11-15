@@ -3,7 +3,7 @@ import St from 'gi://St';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
-import Soup from 'gi://Soup';
+// import Soup from 'gi://Soup'; // TODO: Uncomment when libsoup is installed
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
@@ -127,6 +127,12 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     async _tryGetUsageFromAPI() {
+        // TODO: API fallback disabled - requires libsoup (gir1.2-soup-3.0)
+        // Install with: sudo apt install gir1.2-soup-3.0
+        console.log('[Claude Usage] API fallback not available (libsoup not installed)');
+        return null;
+
+        /* Commented out until libsoup is installed
         if (!this._settings.get_boolean('use-api-fallback')) {
             return null;
         }
@@ -172,8 +178,10 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             console.log('[Claude Usage] API fallback failed:', error.message);
             return null;
         }
+        */
     }
 
+    /* Commented out until libsoup is installed
     async _fetchFromAPI(token) {
         return new Promise((resolve, reject) => {
             const url = 'https://api.anthropic.com/api/oauth/usage';
@@ -212,6 +220,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             );
         });
     }
+    */
 
     async _executeCommand(args, timeoutSeconds) {
         return new Promise((resolve, reject) => {
