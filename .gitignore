@@ -1,0 +1,28 @@
+# Compiled schemas
+extension/schemas/gschemas.compiled
+
+# Node modules (if testing locally)
+node_modules/
+package-lock.json
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.zip
+*.tar.gz
+
+# Temporary files
+*.tmp
+*.bak
+
+# Logs
+*.log
