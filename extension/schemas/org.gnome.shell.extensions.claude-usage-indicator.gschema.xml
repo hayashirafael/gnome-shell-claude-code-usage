@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.claude-usage-indicator" path="/org/gnome/shell/extensions/claude-usage-indicator/">
+
+    <key name="refresh-interval" type="i">
+      <default>3</default>
+      <summary>Refresh interval in minutes</summary>
+      <description>How often to update the usage information (1-60 minutes)</description>
+      <range min="1" max="60"/>
+    </key>
+
+    <key name="command-timeout" type="i">
+      <default>30</default>
+      <summary>Command timeout in seconds</summary>
+      <description>Maximum time to wait for ccusage command to complete</description>
+      <range min="5" max="120"/>
+    </key>
+
+    <key name="ccusage-command" type="s">
+      <default>'npx ccusage'</default>
+      <summary>ccusage command</summary>
+      <description>Command to execute for getting usage data</description>
+    </key>
+
+    <key name="show-percentage" type="b">
+      <default>true</default>
+      <summary>Show percentage</summary>
+      <description>Display token usage percentage in the panel</description>
+    </key>
+
+    <key name="use-api-fallback" type="b">
+      <default>true</default>
+      <summary>Use API fallback</summary>
+      <description>Fall back to Anthropic API if ccusage fails</description>
+    </key>
+
+  </schema>
+</schemalist>

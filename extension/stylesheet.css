@@ -1,0 +1,23 @@
+/* Claude Usage Indicator Stylesheet */
+
+.claude-usage-label {
+    font-weight: normal;
+    padding: 0 6px;
+}
+
+/* Future: Color states */
+.claude-usage-low {
+    color: #00ff00;
+}
+
+.claude-usage-medium {
+    color: #ffff00;
+}
+
+.claude-usage-high {
+    color: #ff8800;
+}
+
+.claude-usage-critical {
+    color: #ff0000;
+}

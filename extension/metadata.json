@@ -1,0 +1,12 @@
+{
+  "name": "Claude Code Usage Indicator",
+  "description": "Monitor Claude Code token usage in real-time from the top bar",
+  "uuid": "claude-usage-indicator@hayashirafael",
+  "shell-version": [
+    "45",
+    "46"
+  ],
+  "version": 1,
+  "url": "https://github.com/hayashirafael/gnome-shell-claude-code-usage",
+  "settings-schema": "org.gnome.shell.extensions.claude-usage-indicator"
+}
