@@ -111,7 +111,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             }
 
             // Extract usage data
-            const tokensUsed = activeBlock.currentTokens || 0;
+            const tokensUsed = activeBlock.totalTokens || 0;
             const tokensLimit = activeBlock.projection?.totalTokens || 150000; // Default 5-hour limit
 
             return {
