@@ -126,6 +126,7 @@ gsettings set org.gnome.shell.extensions.claude-usage-indicator use-api-fallback
 ```
 gnome-shell-claude-code-usage/
 ├── README.md                  # This file
+├── CLAUDE.md                  # AI/Developer context & architecture
 ├── LICENSE                    # MIT License
 ├── .gitignore                 # Git ignore rules
 ├── docs/
