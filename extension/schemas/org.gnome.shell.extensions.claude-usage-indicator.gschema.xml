@@ -3,7 +3,7 @@
   <schema id="org.gnome.shell.extensions.claude-usage-indicator" path="/org/gnome/shell/extensions/claude-usage-indicator/">
 
     <key name="refresh-interval" type="i">
-      <default>3</default>
+      <default>1</default>
       <summary>Refresh interval in minutes</summary>
       <description>How often to update the usage information (1-60 minutes)</description>
       <range min="1" max="60"/>
@@ -45,6 +45,13 @@
       <default>true</default>
       <summary>Show time remaining</summary>
       <description>Display session time remaining in the panel</description>
+    </key>
+
+    <key name="cost-limit" type="d">
+      <default>4.73</default>
+      <summary>Cost limit per session (USD)</summary>
+      <description>Maximum cost allowed per 5-hour session in USD (Pro: ~4.73, Max5: ~35, Max20: ~140)</description>
+      <range min="0.1" max="1000.0"/>
     </key>
 
   </schema>
