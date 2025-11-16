@@ -91,8 +91,8 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             const command = this._settings.get_string('ccusage-command');
             const timeout = this._settings.get_int('command-timeout');
 
-            // Execute: npx ccusage blocks --json
-            const args = command.split(' ').concat(['blocks', '--json']);
+            // Execute: npx ccusage blocks --active --json (only get active block)
+            const args = command.split(' ').concat(['blocks', '--active', '--json']);
 
             const result = await this._executeCommand(args, timeout);
 
@@ -110,13 +110,25 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 return null;
             }
 
-            // Extract usage data
-            const tokensUsed = activeBlock.totalTokens || 0;
-            const tokensLimit = activeBlock.projection?.totalTokens || 150000; // Default 5-hour limit
+            // Calculate tokens that count towards limit
+            // Cache read tokens do NOT count towards rate limits
+            const tokenCounts = activeBlock.tokenCounts || {};
+            const tokensUsed = (tokenCounts.inputTokens || 0) +
+                             (tokenCounts.outputTokens || 0) +
+                             (tokenCounts.cacheCreationInputTokens || 0);
+
+            // Get configured token limit (default: 88000 for Max5)
+            const tokensLimit = this._settings.get_int('token-limit');
+
+            // Get time remaining in minutes
+            const remainingMinutes = activeBlock.projection?.remainingMinutes || 0;
 
             return {
                 tokensUsed,
                 tokensLimit,
+                remainingMinutes,
+                totalTokens: activeBlock.totalTokens || 0,
+                cost: activeBlock.costUSD || 0,
                 source: 'ccusage'
             };
 
@@ -265,17 +277,42 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     _displayUsage(data) {
-        const { tokensUsed, tokensLimit } = data;
+        const { tokensUsed, tokensLimit, remainingMinutes } = data;
 
         // Calculate percentage
         const percentage = ((tokensUsed / tokensLimit) * 100).toFixed(1);
 
-        // Display in panel
-        if (this._settings.get_boolean('show-percentage')) {
-            this._label.set_text(`Claude: ${percentage}%`);
-        } else {
-            this._label.set_text(`Claude: ${tokensUsed.toLocaleString()}`);
+        // Format time remaining
+        let timeText = '';
+        if (this._settings.get_boolean('show-time-remaining') && remainingMinutes > 0) {
+            const hours = Math.floor(remainingMinutes / 60);
+            const mins = remainingMinutes % 60;
+
+            if (hours > 0) {
+                timeText = `${hours}h ${mins}m`;
+            } else {
+                timeText = `${mins}m`;
+            }
         }
+
+        // Build display text
+        let displayText = 'Claude: ';
+
+        if (timeText) {
+            displayText += timeText;
+        }
+
+        if (this._settings.get_boolean('show-percentage')) {
+            if (timeText) {
+                displayText += ` | ${percentage}%`;
+            } else {
+                displayText += `${percentage}%`;
+            }
+        } else if (!timeText) {
+            displayText += `${tokensUsed.toLocaleString()}`;
+        }
+
+        this._label.set_text(displayText);
     }
 
     destroy() {

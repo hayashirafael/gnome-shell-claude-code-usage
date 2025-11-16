@@ -34,5 +34,18 @@
       <description>Fall back to Anthropic API if ccusage fails</description>
     </key>
 
+    <key name="token-limit" type="i">
+      <default>88000</default>
+      <summary>Token limit per session</summary>
+      <description>Maximum tokens allowed per 5-hour session (Pro: 19000, Max5: 88000, Max20: 220000)</description>
+      <range min="1000" max="1000000"/>
+    </key>
+
+    <key name="show-time-remaining" type="b">
+      <default>true</default>
+      <summary>Show time remaining</summary>
+      <description>Display session time remaining in the panel</description>
+    </key>
+
   </schema>
 </schemalist>
