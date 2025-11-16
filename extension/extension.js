@@ -136,11 +136,10 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             const totalSessionMinutes = (endTime - startTime) / (1000 * 60);
             const elapsedMinutes = (now - startTime) / (1000 * 60);
 
-            // Dynamic limit estimation based on projection and time
-            // The limit appears to be: projection * factor, where factor varies
-            // For now, use a conservative estimate based on session progress
-            const sessionProgress = elapsedMinutes / totalSessionMinutes;
-            const dynamicLimit = projectedTotalCost / sessionProgress;
+            // Calculate dynamic limit based on projection
+            // Formula discovered: limit = projected_cost * 2
+            // This gives percentage = (cost / (projected * 2)) * 100
+            const dynamicLimit = projectedTotalCost * 2;
 
             return {
                 tokensUsed,
@@ -150,7 +149,6 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 cost,
                 projectedTotalCost,
                 dynamicLimit,
-                sessionProgress,
                 source: 'ccusage'
             };
 
@@ -296,16 +294,16 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     _displayUsage(data) {
-        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit, dynamicLimit, sessionProgress } = data;
+        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit, dynamicLimit } = data;
 
         // Use percentage directly from API if available, otherwise calculate
         let percentage = 0;
         if (apiPercentage !== null && apiPercentage !== undefined) {
             // Use percentage from API (most accurate)
             percentage = Math.round(apiPercentage);
-        } else if (dynamicLimit && sessionProgress) {
-            // Use dynamic limit based on session progress and projection
-            // This matches Claude's internal calculation more closely
+        } else if (dynamicLimit && dynamicLimit > 0) {
+            // Use dynamic limit based on projected cost * 2
+            // Formula: percentage = (cost / (projected * 2)) * 100
             percentage = Math.round((cost / dynamicLimit) * 100);
         } else {
             // Fallback: calculate using configured cost limit
