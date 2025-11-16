@@ -123,12 +123,17 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             // Get time remaining in minutes
             const remainingMinutes = activeBlock.projection?.remainingMinutes || 0;
 
+            // Get cost and projected total cost for percentage calculation
+            const cost = activeBlock.costUSD || 0;
+            const projectedTotalCost = activeBlock.projection?.totalCost || 0;
+
             return {
                 tokensUsed,
                 tokensLimit,
                 remainingMinutes,
                 totalTokens: activeBlock.totalTokens || 0,
-                cost: activeBlock.costUSD || 0,
+                cost,
+                projectedTotalCost,
                 source: 'ccusage'
             };
 
@@ -277,10 +282,13 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     _displayUsage(data) {
-        const { tokensUsed, tokensLimit, remainingMinutes } = data;
+        const { cost, projectedTotalCost, remainingMinutes } = data;
 
-        // Calculate percentage
-        const percentage = ((tokensUsed / tokensLimit) * 100).toFixed(1);
+        // Calculate percentage using cost and projected total cost (same as claude.ai)
+        let percentage = 0;
+        if (projectedTotalCost > 0) {
+            percentage = ((cost / projectedTotalCost) * 100).toFixed(0);
+        }
 
         // Format time remaining
         let timeText = '';
@@ -309,7 +317,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 displayText += `${percentage}%`;
             }
         } else if (!timeText) {
-            displayText += `${tokensUsed.toLocaleString()}`;
+            displayText += `$${cost.toFixed(2)}`;
         }
 
         this._label.set_text(displayText);
