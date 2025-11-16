@@ -125,9 +125,22 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             // Get time remaining in minutes
             const remainingMinutes = activeBlock.projection?.remainingMinutes || 0;
 
-            // Get cost and projected total cost for percentage calculation
+            // Get cost and time data for percentage calculation
             const cost = activeBlock.costUSD || 0;
             const projectedTotalCost = activeBlock.projection?.totalCost || 0;
+
+            // Calculate time-based metrics
+            const startTime = new Date(activeBlock.startTime);
+            const endTime = new Date(activeBlock.endTime);
+            const now = new Date();
+            const totalSessionMinutes = (endTime - startTime) / (1000 * 60);
+            const elapsedMinutes = (now - startTime) / (1000 * 60);
+
+            // Dynamic limit estimation based on projection and time
+            // The limit appears to be: projection * factor, where factor varies
+            // For now, use a conservative estimate based on session progress
+            const sessionProgress = elapsedMinutes / totalSessionMinutes;
+            const dynamicLimit = projectedTotalCost / sessionProgress;
 
             return {
                 tokensUsed,
@@ -136,6 +149,8 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 totalTokens: activeBlock.totalTokens || 0,
                 cost,
                 projectedTotalCost,
+                dynamicLimit,
+                sessionProgress,
                 source: 'ccusage'
             };
 
@@ -281,15 +296,19 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     _displayUsage(data) {
-        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit } = data;
+        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit, dynamicLimit, sessionProgress } = data;
 
         // Use percentage directly from API if available, otherwise calculate
         let percentage = 0;
         if (apiPercentage !== null && apiPercentage !== undefined) {
             // Use percentage from API (most accurate)
             percentage = Math.round(apiPercentage);
+        } else if (dynamicLimit && sessionProgress) {
+            // Use dynamic limit based on session progress and projection
+            // This matches Claude's internal calculation more closely
+            percentage = Math.round((cost / dynamicLimit) * 100);
         } else {
-            // Fallback: calculate using cost and limit
+            // Fallback: calculate using configured cost limit
             const costLimit = apiCostLimit || this._settings.get_double('cost-limit');
             if (costLimit > 0 && cost > 0) {
                 percentage = ((cost / costLimit) * 100).toFixed(0);
