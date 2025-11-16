@@ -62,19 +62,21 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         this._refreshing = true;
         this._label.set_text('Claude: Refreshing...');
 
-        // Try ccusage first
-        this._tryGetUsageFromCcusage()
-            .then(data => {
-                if (data) {
-                    this._displayUsage(data);
+        // Try API first for most accurate percentage, fallback to ccusage
+        this._tryGetUsageFromAPI()
+            .then(apiData => {
+                if (apiData && apiData.percentage !== null && apiData.percentage !== undefined) {
+                    // API returned percentage - use it directly
+                    this._displayUsage(apiData);
+                    return null; // Skip ccusage
                 } else {
-                    // Fallback to API
-                    return this._tryGetUsageFromAPI();
+                    // API failed or didn't return percentage - use ccusage
+                    return this._tryGetUsageFromCcusage();
                 }
             })
-            .then(data => {
-                if (data) {
-                    this._displayUsage(data);
+            .then(ccusageData => {
+                if (ccusageData) {
+                    this._displayUsage(ccusageData);
                 }
             })
             .catch(error => {
@@ -144,12 +146,6 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     async _tryGetUsageFromAPI() {
-        // TODO: API fallback disabled - requires libsoup (gir1.2-soup-3.0)
-        // Install with: sudo apt install gir1.2-soup-3.0
-        console.log('[Claude Usage] API fallback not available (libsoup not installed)');
-        return null;
-
-        /* Commented out until libsoup is installed
         if (!this._settings.get_boolean('use-api-fallback')) {
             return null;
         }
@@ -186,8 +182,8 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 return null;
             }
 
-            // Fetch usage from Anthropic API
-            const usageData = await this._fetchFromAPI(accessToken);
+            // Fetch usage from Anthropic API using curl
+            const usageData = await this._fetchFromAPIWithCurl(accessToken);
 
             return usageData;
 
@@ -195,49 +191,52 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             console.log('[Claude Usage] API fallback failed:', error.message);
             return null;
         }
-        */
     }
 
-    /* Commented out until libsoup is installed
-    async _fetchFromAPI(token) {
-        return new Promise((resolve, reject) => {
+    async _fetchFromAPIWithCurl(token) {
+        try {
             const url = 'https://api.anthropic.com/api/oauth/usage';
 
-            const session = new Soup.Session();
-            const message = Soup.Message.new('GET', url);
+            const args = [
+                'curl',
+                '-s',
+                '-H', `Authorization: Bearer ${token}`,
+                '-H', 'Content-Type: application/json',
+                url
+            ];
 
-            message.request_headers.append('Authorization', `Bearer ${token}`);
-            message.request_headers.append('Content-Type', 'application/json');
+            const timeout = this._settings.get_int('command-timeout');
+            const result = await this._executeCommand(args, timeout);
 
-            session.send_and_read_async(
-                message,
-                GLib.PRIORITY_DEFAULT,
-                null,
-                (session, result) => {
-                    try {
-                        const bytes = session.send_and_read_finish(result);
-                        const decoder = new TextDecoder('utf-8');
-                        const responseText = decoder.decode(bytes.get_data());
-                        const data = JSON.parse(responseText);
+            if (!result || !result.stdout) {
+                return null;
+            }
 
-                        // Parse API response
-                        // Note: Actual API structure may differ - this is a best guess
-                        const currentSession = data.current_session || data.five_hour || {};
+            const data = JSON.parse(result.stdout);
 
-                        resolve({
-                            tokensUsed: currentSession.tokens_used || 0,
-                            tokensLimit: currentSession.tokens_limit || 150000,
-                            source: 'api'
-                        });
+            // Parse API response to extract usage data
+            // The API should return percentage and other usage metrics
+            const currentSession = data.current_session || data.five_hour || data.session || {};
 
-                    } catch (error) {
-                        reject(error);
-                    }
-                }
-            );
-        });
+            // Extract percentage if available
+            const percentage = currentSession.percentage || currentSession.usage_percentage || null;
+            const cost = currentSession.cost || currentSession.cost_usd || 0;
+            const costLimit = currentSession.cost_limit || currentSession.limit || 0;
+            const remainingMinutes = currentSession.remaining_minutes || currentSession.time_remaining_minutes || 0;
+
+            return {
+                percentage, // Direct percentage from API
+                cost,
+                costLimit,
+                remainingMinutes,
+                source: 'api'
+            };
+
+        } catch (error) {
+            console.log('[Claude Usage] API fetch with curl failed:', error.message);
+            return null;
+        }
     }
-    */
 
     async _executeCommand(args, timeoutSeconds) {
         return new Promise((resolve, reject) => {
@@ -282,15 +281,19 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     _displayUsage(data) {
-        const { cost, remainingMinutes } = data;
+        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit } = data;
 
-        // Get configured cost limit per session
-        const costLimit = this._settings.get_double('cost-limit');
-
-        // Calculate percentage using cost and fixed limit (same as claude.ai)
+        // Use percentage directly from API if available, otherwise calculate
         let percentage = 0;
-        if (costLimit > 0) {
-            percentage = ((cost / costLimit) * 100).toFixed(0);
+        if (apiPercentage !== null && apiPercentage !== undefined) {
+            // Use percentage from API (most accurate)
+            percentage = Math.round(apiPercentage);
+        } else {
+            // Fallback: calculate using cost and limit
+            const costLimit = apiCostLimit || this._settings.get_double('cost-limit');
+            if (costLimit > 0 && cost > 0) {
+                percentage = ((cost / costLimit) * 100).toFixed(0);
+            }
         }
 
         // Format time remaining
