@@ -29,7 +29,7 @@
     </key>
 
     <key name="use-api-fallback" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Use API fallback</summary>
       <description>Fall back to Anthropic API if ccusage fails</description>
     </key>

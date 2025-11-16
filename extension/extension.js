@@ -125,9 +125,21 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             // Get time remaining in minutes
             const remainingMinutes = activeBlock.projection?.remainingMinutes || 0;
 
-            // Get cost and projected total cost for percentage calculation
+            // Get cost and time data for percentage calculation
             const cost = activeBlock.costUSD || 0;
             const projectedTotalCost = activeBlock.projection?.totalCost || 0;
+
+            // Calculate time-based metrics
+            const startTime = new Date(activeBlock.startTime);
+            const endTime = new Date(activeBlock.endTime);
+            const now = new Date();
+            const totalSessionMinutes = (endTime - startTime) / (1000 * 60);
+            const elapsedMinutes = (now - startTime) / (1000 * 60);
+
+            // Calculate dynamic limit based on projection
+            // Formula discovered: limit = projected_cost * 2
+            // This gives percentage = (cost / (projected * 2)) * 100
+            const dynamicLimit = projectedTotalCost * 2;
 
             return {
                 tokensUsed,
@@ -136,6 +148,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 totalTokens: activeBlock.totalTokens || 0,
                 cost,
                 projectedTotalCost,
+                dynamicLimit,
                 source: 'ccusage'
             };
 
@@ -281,15 +294,19 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     _displayUsage(data) {
-        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit } = data;
+        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit, dynamicLimit } = data;
 
         // Use percentage directly from API if available, otherwise calculate
         let percentage = 0;
         if (apiPercentage !== null && apiPercentage !== undefined) {
             // Use percentage from API (most accurate)
             percentage = Math.round(apiPercentage);
+        } else if (dynamicLimit && dynamicLimit > 0) {
+            // Use dynamic limit based on projected cost * 2
+            // Formula: percentage = (cost / (projected * 2)) * 100
+            percentage = Math.round((cost / dynamicLimit) * 100);
         } else {
-            // Fallback: calculate using cost and limit
+            // Fallback: calculate using configured cost limit
             const costLimit = apiCostLimit || this._settings.get_double('cost-limit');
             if (costLimit > 0 && cost > 0) {
                 percentage = ((cost / costLimit) * 100).toFixed(0);
