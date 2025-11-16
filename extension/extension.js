@@ -282,12 +282,15 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     _displayUsage(data) {
-        const { cost, projectedTotalCost, remainingMinutes } = data;
+        const { cost, remainingMinutes } = data;
 
-        // Calculate percentage using cost and projected total cost (same as claude.ai)
+        // Get configured cost limit per session
+        const costLimit = this._settings.get_double('cost-limit');
+
+        // Calculate percentage using cost and fixed limit (same as claude.ai)
         let percentage = 0;
-        if (projectedTotalCost > 0) {
-            percentage = ((cost / projectedTotalCost) * 100).toFixed(0);
+        if (costLimit > 0) {
+            percentage = ((cost / costLimit) * 100).toFixed(0);
         }
 
         // Format time remaining

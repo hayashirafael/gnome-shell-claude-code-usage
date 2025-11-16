@@ -47,5 +47,12 @@
       <description>Display session time remaining in the panel</description>
     </key>
 
+    <key name="cost-limit" type="d">
+      <default>4.73</default>
+      <summary>Cost limit per session (USD)</summary>
+      <description>Maximum cost allowed per 5-hour session in USD (Pro: ~4.73, Max5: ~35, Max20: ~140)</description>
+      <range min="0.1" max="1000.0"/>
+    </key>
+
   </schema>
 </schemalist>
