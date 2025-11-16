@@ -280,7 +280,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         const { tokensUsed, tokensLimit, remainingMinutes } = data;
 
         // Calculate percentage
-        const percentage = ((tokensUsed / tokensLimit) * 100).toFixed(1);
+        const percentage = ((tokensUsed / tokensLimit) * 100).toFixed(0);
 
         // Format time remaining
         let timeText = '';
