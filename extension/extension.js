@@ -172,41 +172,20 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             // Get time remaining in minutes
             const remainingMinutes = activeBlock.projection?.remainingMinutes || 0;
 
-            // Get cost data for percentage calculation
+            // Get cost data (for display only, not percentage calculation)
             const cost = activeBlock.costUSD || 0;
             const projectedTotalCost = activeBlock.projection?.totalCost || 0;
 
-            // FORMULA DISCOVERY (UPDATED):
-            // After extensive testing with real-time data, we discovered the percentage
-            // calculation uses a DYNAMIC factor that changes during the session:
+            // NOTE: We DO NOT calculate percentage locally anymore!
+            // The percentage calculation algorithm is proprietary to Anthropic
+            // and changes dynamically in ways we cannot reliably replicate.
             //
-            //   factor = 2.113 - (0.645 × session_progress)
-            //   percentage = (current_cost / (projected_cost × factor)) × 100
+            // Previous attempts to reverse-engineer the formula showed inaccuracies:
+            // - Extension showed 31% when site showed 29%
+            // - Formula with dynamic factors still had 2% error
             //
-            // Where session_progress = elapsed_time / total_time (0.0 to 1.0)
-            //
-            // This explains why the limit appears to change - it's not fixed!
-            // The factor decreases as the session progresses:
-            //   - At start (0%):    factor ≈ 2.113
-            //   - At middle (50%):  factor ≈ 1.79
-            //   - At end (100%):    factor ≈ 1.47
-            //
-            // Real validation:
-            //   Session 33% complete: factor = 1.90, gives 16% (site shows 16%) ✓
-            //   Session 55% complete: factor = 1.76, gives 29% (site shows 29%) ✓
-            //
-            // This formula matches claude.ai with ~0% difference!
-
-            // Calculate session progress (0.0 to 1.0)
-            const startTime = new Date(activeBlock.startTime);
-            const endTime = new Date(activeBlock.endTime);
-            const totalSessionMinutes = (endTime - startTime) / (1000 * 60); // Should be 300
-            const elapsedMinutes = totalSessionMinutes - remainingMinutes;
-            const sessionProgress = elapsedMinutes / totalSessionMinutes;
-
-            // Calculate dynamic factor based on session progress
-            const dynamicFactor = 2.113 - (0.645 * sessionProgress);
-            const dynamicLimit = projectedTotalCost * dynamicFactor;
+            // SOLUTION: Use Anthropic OAuth API exclusively for accurate percentage
+            // This method only provides supporting data (cost, time remaining)
 
             return {
                 tokensUsed,
@@ -215,7 +194,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 totalTokens: activeBlock.totalTokens || 0,
                 cost,
                 projectedTotalCost,
-                dynamicLimit,
+                percentage: null,  // Must come from API
                 source: 'ccusage'
             };
 
@@ -312,7 +291,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             const args = [
                 'curl',
                 '-s',
-                '-H', `Authorization: Bearer ${token}`,
+                '-H', `x-api-key: ${token}`,
                 '-H', 'Content-Type: application/json',
                 url
             ];
@@ -395,52 +374,31 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     /**
      * Display usage data in the panel
      *
-     * Calculates and formats the percentage using a 3-tier priority system:
-     *
-     * 1. API percentage (if available) - Most accurate, directly from Anthropic
-     * 2. Dynamic calculation - Uses formula: (cost / (projected × 2)) × 100
-     * 3. Static fallback - Uses configured cost-limit setting
+     * IMPORTANT: Percentage MUST come from Anthropic OAuth API!
+     * Local calculation is not accurate due to proprietary dynamic algorithms.
      *
      * Output formats:
-     * - Full: "Claude: 3h 28m | 16%"
-     * - Time only: "Claude: 3h 28m"
-     * - Percentage only: "Claude: 16%"
-     * - Cost only: "Claude: $4.21" (when percentage disabled)
+     * - With API: "Claude: 3h 28m | 16%"
+     * - Without API (time only): "Claude: 3h 28m"
+     * - Without API (cost only): "Claude: $4.21"
+     * - No API configured: "Claude: Setup API"
      *
      * @param {Object} data - Usage data from API or ccusage
      * @param {number} data.cost - Current session cost in USD
      * @param {number} data.remainingMinutes - Minutes until session reset
-     * @param {number} [data.percentage] - Direct percentage from API (optional)
-     * @param {number} [data.dynamicLimit] - Calculated limit for percentage (optional)
-     * @param {number} [data.costLimit] - Fixed limit from API or settings (optional)
+     * @param {number} [data.percentage] - Direct percentage from API (REQUIRED for accuracy)
      */
     _displayUsage(data) {
-        const { cost, remainingMinutes, percentage: apiPercentage, costLimit: apiCostLimit, dynamicLimit } = data;
+        const { cost, remainingMinutes, percentage: apiPercentage } = data;
 
-        // === PERCENTAGE CALCULATION (3-tier priority) ===
-        let percentage = 0;
+        // === PERCENTAGE - API ONLY ===
+        let percentage = null;
+        let hasPercentage = false;
 
         if (apiPercentage !== null && apiPercentage !== undefined) {
-            // PRIORITY 1: Use percentage from API (most accurate!)
+            // Use percentage from Anthropic API (100% accurate)
             percentage = Math.round(apiPercentage);
-
-        } else if (dynamicLimit && dynamicLimit > 0) {
-            // PRIORITY 2: Calculate using dynamic limit formula
-            // Formula: percentage = (cost / (projected_cost × 2)) × 100
-            //
-            // Why this works:
-            // - Claude Code adjusts limits dynamically based on burn rate
-            // - The projected cost represents expected total if rate continues
-            // - Multiplying by 2 gives the effective session limit
-            // - This matches claude.ai with ~1% accuracy for all plans
-            percentage = Math.round((cost / dynamicLimit) * 100);
-
-        } else {
-            // PRIORITY 3: Fallback to configured static limit
-            const costLimit = apiCostLimit || this._settings.get_double('cost-limit');
-            if (costLimit > 0 && cost > 0) {
-                percentage = ((cost / costLimit) * 100).toFixed(0);
-            }
+            hasPercentage = true;
         }
 
         // === TIME FORMATTING ===
@@ -459,18 +417,34 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
         // === BUILD DISPLAY TEXT ===
         let displayText = 'Claude: ';
 
-        if (timeText) {
-            displayText += timeText;
-        }
-
-        if (this._settings.get_boolean('show-percentage')) {
+        if (!hasPercentage && !timeText && !this._settings.get_boolean('use-api-fallback')) {
+            // No API configured - show setup message
+            displayText = 'Claude: Setup API';
+        } else {
+            // Show available data
             if (timeText) {
-                displayText += ` | ${percentage}%`;
-            } else {
-                displayText += `${percentage}%`;
+                displayText += timeText;
             }
-        } else if (!timeText) {
-            displayText += `$${cost.toFixed(2)}`;
+
+            if (this._settings.get_boolean('show-percentage')) {
+                if (hasPercentage) {
+                    if (timeText) {
+                        displayText += ` | ${percentage}%`;
+                    } else {
+                        displayText += `${percentage}%`;
+                    }
+                } else {
+                    // API not available but percentage requested
+                    if (timeText) {
+                        displayText += ' | --';
+                    } else {
+                        displayText += 'API Required';
+                    }
+                }
+            } else if (!timeText) {
+                // Show cost if nothing else to display
+                displayText += `$${cost.toFixed(2)}`;
+            }
         }
 
         this._label.set_text(displayText);

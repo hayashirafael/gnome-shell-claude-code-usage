@@ -29,9 +29,9 @@
     </key>
 
     <key name="use-api-fallback" type="b">
-      <default>false</default>
-      <summary>Use API fallback</summary>
-      <description>Fall back to Anthropic API if ccusage fails</description>
+      <default>true</default>
+      <summary>Use Anthropic API for accurate percentage</summary>
+      <description>Use Anthropic OAuth API to get exact usage percentage (requires credentials file)</description>
     </key>
 
     <key name="token-limit" type="i">
