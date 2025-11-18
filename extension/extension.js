@@ -313,6 +313,8 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
 
             const data = JSON.parse(result.stdout);
 
+            console.log('[Claude Usage] API response received:', JSON.stringify(data).substring(0, 200));
+
             // Extract five_hour session data
             const fiveHour = data.five_hour;
 
@@ -321,8 +323,13 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 return null;
             }
 
+            console.log('[Claude Usage] five_hour data:', JSON.stringify(fiveHour));
+
             // Extract percentage (utilization is 0-100)
-            const percentage = fiveHour.utilization || 0;
+            // Convert to number explicitly in case it's a string
+            const percentage = fiveHour.utilization ? Number(fiveHour.utilization) : 0;
+
+            console.log('[Claude Usage] Extracted percentage:', percentage);
 
             // Calculate remaining minutes from resets_at timestamp
             let remainingMinutes = 0;
