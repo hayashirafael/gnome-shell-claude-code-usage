@@ -89,6 +89,8 @@ EXTRACTION_PAGE = """<!DOCTYPE html>
             <input type="text" id="sessionKey" placeholder="sk-ant-sid01-...">
             <label>Organization ID:</label>
             <input type="text" id="orgId" placeholder="732b3b29-...">
+            <label>cf_clearance (optional but recommended):</label>
+            <input type="text" id="cfClearance" placeholder="8m2peJaQt1pH3xrGpz_...">
             <button onclick="saveManualCookies()">Save Credentials</button>
         </div>
     </div>
@@ -103,13 +105,14 @@ EXTRACTION_PAGE = """<!DOCTYPE html>
             statusDiv.textContent = message;
         }
 
-        function sendCredentials(sessionKey, orgId) {
+        function sendCredentials(sessionKey, orgId, cfClearance) {
             fetch('http://localhost:""" + str(PORT) + """/save-credentials', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     session_key: sessionKey,
-                    organization_id: orgId
+                    organization_id: orgId,
+                    cf_clearance: cfClearance || ''
                 })
             })
             .then(response => response.json())
@@ -142,10 +145,11 @@ EXTRACTION_PAGE = """<!DOCTYPE html>
 
                 const sessionKey = getCookie('sessionKey');
                 const orgId = getCookie('lastActiveOrg');
+                const cfClearance = getCookie('cf_clearance');
 
                 if (sessionKey && orgId) {
                     updateStatus('✅ Found credentials! Saving...', 'success');
-                    sendCredentials(sessionKey, orgId);
+                    sendCredentials(sessionKey, orgId, cfClearance);
                     return true;
                 } else {
                     updateStatus('⚠️ Cookies not found. Please log in to claude.ai first.', 'error');
@@ -198,9 +202,10 @@ EXTRACTION_PAGE = """<!DOCTYPE html>
         function saveManualCookies() {
             const sessionKey = document.getElementById('sessionKey').value.trim();
             const orgId = document.getElementById('orgId').value.trim();
+            const cfClearance = document.getElementById('cfClearance').value.trim();
 
             if (!sessionKey || !orgId) {
-                alert('Please fill in both fields');
+                alert('Please fill in sessionKey and orgId');
                 return;
             }
 
@@ -209,7 +214,7 @@ EXTRACTION_PAGE = """<!DOCTYPE html>
                 return;
             }
 
-            sendCredentials(sessionKey, orgId);
+            sendCredentials(sessionKey, orgId, cfClearance);
         }
 
         // Auto-extract on load
@@ -244,6 +249,7 @@ class CredentialsHandler(BaseHTTPRequestHandler):
                 data = json.loads(post_data.decode())
                 session_key = data.get('session_key', '').strip()
                 org_id = data.get('organization_id', '').strip()
+                cf_clearance = data.get('cf_clearance', '').strip()
 
                 if not session_key or not org_id:
                     self.send_json_response({'success': False, 'error': 'Missing credentials'})
@@ -256,6 +262,9 @@ class CredentialsHandler(BaseHTTPRequestHandler):
                     'organization_id': org_id
                 }
 
+                if cf_clearance:
+                    credentials['cf_clearance'] = cf_clearance
+
                 with open(CREDENTIALS_FILE, 'w') as f:
                     json.dump(credentials, f, indent=2)
 
@@ -264,6 +273,8 @@ class CredentialsHandler(BaseHTTPRequestHandler):
                 print(f"\n✅ Credentials saved to {CREDENTIALS_FILE}")
                 print(f"   Session Key: {session_key[:20]}...")
                 print(f"   Organization ID: {org_id}")
+                if cf_clearance:
+                    print(f"   CF Clearance: {cf_clearance[:20]}...")
 
                 CredentialsHandler.credentials_received = True
 
