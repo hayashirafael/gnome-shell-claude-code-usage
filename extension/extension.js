@@ -251,6 +251,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
 
             const sessionKey = credentials.session_key;
             const organizationId = credentials.organization_id;
+            const cfClearance = credentials.cf_clearance || '';
 
             if (!sessionKey || !organizationId) {
                 console.log('[Claude Usage] Missing session_key or organization_id in credentials');
@@ -258,7 +259,7 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             }
 
             // Fetch usage from Claude.ai API using curl
-            const usageData = await this._fetchFromAPIWithCurl(sessionKey, organizationId);
+            const usageData = await this._fetchFromAPIWithCurl(sessionKey, organizationId, cfClearance);
 
             return usageData;
 
@@ -285,16 +286,23 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
      *
      * @param {string} sessionKey - Session key cookie from claude.ai
      * @param {string} organizationId - Organization ID from claude.ai
+     * @param {string} cfClearance - Cloudflare clearance cookie (optional)
      * @returns {Promise<Object|null>} Parsed usage data or null
      */
-    async _fetchFromAPIWithCurl(sessionKey, organizationId) {
+    async _fetchFromAPIWithCurl(sessionKey, organizationId, cfClearance = '') {
         try {
             const url = `https://claude.ai/api/organizations/${organizationId}/usage`;
+
+            // Build cookie string
+            let cookieString = `sessionKey=${sessionKey}; lastActiveOrg=${organizationId}`;
+            if (cfClearance) {
+                cookieString += `; cf_clearance=${cfClearance}`;
+            }
 
             const args = [
                 'curl',
                 '-s',
-                '-H', `Cookie: sessionKey=${sessionKey}; lastActiveOrg=${organizationId}`,
+                '-H', `Cookie: ${cookieString}`,
                 '-H', 'Content-Type: application/json',
                 '-H', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 '-H', 'Accept: */*',
