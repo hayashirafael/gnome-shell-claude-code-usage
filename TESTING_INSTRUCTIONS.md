@@ -57,7 +57,13 @@ If the standalone script worked, test the actual extension:
 
 1. **Make sure extension is enabled:**
    ```bash
-   gsettings set org.gnome.shell.extensions.claude-usage-indicator use-api-fallback true
+   # Use the helper script (recommended)
+   cd scripts
+   ./settings.sh enable-api
+
+   # Or use gsettings directly
+   gsettings --schemadir /home/user/gnome-shell-claude-code-usage/extension/schemas/ \
+     set org.gnome.shell.extensions.claude-usage-indicator use-api-fallback true
    ```
 
 2. **Reload extension:**
@@ -257,12 +263,54 @@ Use Firefox's headless mode:
 If nothing works, disable API and show time only:
 
 ```bash
-gsettings set org.gnome.shell.extensions.claude-usage-indicator use-api-fallback false
-gsettings set org.gnome.shell.extensions.claude-usage-indicator show-percentage false
-cd scripts && ./dev-reload.sh
+cd scripts
+./settings.sh disable-api
+./settings.sh set show-percentage false
+./dev-reload.sh
 ```
 
 Extension will show: `Claude: 4h 38m` (no percentage)
+
+---
+
+## Settings Management
+
+A helper script (`scripts/settings.sh`) is provided to make managing extension settings easier:
+
+```bash
+cd scripts
+
+# List all settings and their current values
+./settings.sh list
+
+# Output:
+# Available settings:
+#   ccusage-command           = 'npx ccusage'
+#   command-timeout           = 30
+#   cost-limit                = 4.73
+#   refresh-interval          = 1
+#   show-percentage           = true
+#   show-time-remaining       = true
+#   token-limit               = 88000
+#   use-api-fallback          = true
+
+# Get a specific setting
+./settings.sh get refresh-interval
+# Output: 1
+
+# Set a setting
+./settings.sh set refresh-interval 2
+# Output: ✓ Set refresh-interval = 2
+
+# Quick commands
+./settings.sh enable-api    # Enable API (use claude.ai for percentage)
+./settings.sh disable-api   # Disable API (time-only mode)
+```
+
+**Note:** After changing settings, reload the extension:
+```bash
+./dev-reload.sh
+```
 
 ---
 
@@ -270,8 +318,11 @@ Extension will show: `Claude: 4h 38m` (no percentage)
 
 - ✅ Extension code updated to use Soup
 - ✅ Test script created (scripts/test-soup-api.js)
+- ✅ **Soup successfully bypasses Cloudflare!** (API returns percentage: 3%)
+- ✅ Settings helper script added (scripts/settings.sh)
+- ✅ API enabled via settings
 - ✅ Changes committed and pushed
-- ⏳ **Awaiting testing in your GNOME Shell environment**
+- ⏳ **Ready for final testing in GNOME Shell panel**
 
 ## Next Steps
 
