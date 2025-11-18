@@ -146,11 +146,12 @@ session.send_and_read_async(
             print('   Resets at:', fiveHour.resets_at);
 
             // Calculate remaining time
+            let remainingMinutes = 0;
             if (fiveHour.resets_at) {
                 const resetsAt = new Date(fiveHour.resets_at);
                 const now = new Date();
                 const diffMs = resetsAt - now;
-                const remainingMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+                remainingMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
                 const hours = Math.floor(remainingMinutes / 60);
                 const mins = remainingMinutes % 60;
                 print('   Time remaining:', `${hours}h ${mins}m`);
@@ -162,8 +163,10 @@ session.send_and_read_async(
         } catch (error) {
             print('❌ Error parsing response:', error.message);
             print('');
-            print('Response preview:');
-            print(responseText.substring(0, 300));
+            if (typeof responseText !== 'undefined') {
+                print('Response preview:');
+                print(responseText.substring(0, 300));
+            }
         }
 
         loop.quit();
