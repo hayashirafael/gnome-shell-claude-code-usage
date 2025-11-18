@@ -249,14 +249,16 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
             const credentialsJson = decoder.decode(contents);
             const credentials = JSON.parse(credentialsJson);
 
-            const accessToken = credentials.access_token;
+            const sessionKey = credentials.session_key;
+            const organizationId = credentials.organization_id;
 
-            if (!accessToken) {
+            if (!sessionKey || !organizationId) {
+                console.log('[Claude Usage] Missing session_key or organization_id in credentials');
                 return null;
             }
 
-            // Fetch usage from Anthropic API using curl
-            const usageData = await this._fetchFromAPIWithCurl(accessToken);
+            // Fetch usage from Claude.ai API using curl
+            const usageData = await this._fetchFromAPIWithCurl(sessionKey, organizationId);
 
             return usageData;
 
@@ -267,32 +269,38 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     /**
-     * Execute API request using curl
+     * Execute API request using curl to claude.ai
      *
-     * Uses curl instead of libsoup to avoid additional dependencies.
+     * Fetches usage data from the official Claude.ai API endpoint.
      *
-     * Expected API response structure (inferred, may vary):
+     * Expected API response structure:
      * {
-     *   "current_session": {
-     *     "percentage": 16,
-     *     "cost_usd": 0.84,
-     *     "cost_limit": 5.25,
-     *     "remaining_minutes": 202
-     *   }
+     *   "five_hour": {
+     *     "utilization": 13,  // Percentage (0-100)
+     *     "resets_at": "2025-11-18T00:59:59.545582+00:00"
+     *   },
+     *   "seven_day": { ... },
+     *   ...
      * }
      *
-     * @param {string} token - OAuth Bearer token
-     * @returns {Promise<Object|null>} Parsed API response or null
+     * @param {string} sessionKey - Session key cookie from claude.ai
+     * @param {string} organizationId - Organization ID from claude.ai
+     * @returns {Promise<Object|null>} Parsed usage data or null
      */
-    async _fetchFromAPIWithCurl(token) {
+    async _fetchFromAPIWithCurl(sessionKey, organizationId) {
         try {
-            const url = 'https://api.anthropic.com/api/oauth/usage';
+            const url = `https://claude.ai/api/organizations/${organizationId}/usage`;
 
             const args = [
                 'curl',
                 '-s',
-                '-H', `x-api-key: ${token}`,
+                '-H', `Cookie: sessionKey=${sessionKey}; lastActiveOrg=${organizationId}`,
                 '-H', 'Content-Type: application/json',
+                '-H', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                '-H', 'Accept: */*',
+                '-H', 'Accept-Language: en-US,en;q=0.9',
+                '-H', 'Referer: https://claude.ai/settings/usage',
+                '-H', 'anthropic-client-platform: web_claude_ai',
                 url
             ];
 
@@ -305,21 +313,30 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
 
             const data = JSON.parse(result.stdout);
 
-            // Parse API response to extract usage data
-            // Try multiple possible field names as API structure is not documented
-            const currentSession = data.current_session || data.five_hour || data.session || {};
+            // Extract five_hour session data
+            const fiveHour = data.five_hour;
 
-            // Extract percentage if available (most accurate!)
-            const percentage = currentSession.percentage || currentSession.usage_percentage || null;
-            const cost = currentSession.cost || currentSession.cost_usd || 0;
-            const costLimit = currentSession.cost_limit || currentSession.limit || 0;
-            const remainingMinutes = currentSession.remaining_minutes || currentSession.time_remaining_minutes || 0;
+            if (!fiveHour) {
+                console.log('[Claude Usage] No five_hour data in API response');
+                return null;
+            }
+
+            // Extract percentage (utilization is 0-100)
+            const percentage = fiveHour.utilization || 0;
+
+            // Calculate remaining minutes from resets_at timestamp
+            let remainingMinutes = 0;
+            if (fiveHour.resets_at) {
+                const resetsAt = new Date(fiveHour.resets_at);
+                const now = new Date();
+                const diffMs = resetsAt - now;
+                remainingMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+            }
 
             return {
-                percentage, // Direct percentage from API (preferred!)
-                cost,
-                costLimit,
-                remainingMinutes,
+                percentage,           // Direct percentage from API (100% accurate!)
+                remainingMinutes,     // Calculated from resets_at
+                cost: 0,             // Not provided by this API
                 source: 'api'
             };
 
