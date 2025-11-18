@@ -3,6 +3,7 @@ import St from 'gi://St';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Clutter from 'gi://Clutter';
+import Soup from 'gi://Soup';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
@@ -258,8 +259,8 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
                 return null;
             }
 
-            // Fetch usage from Claude.ai API using curl
-            const usageData = await this._fetchFromAPIWithCurl(sessionKey, organizationId, cfClearance);
+            // Fetch usage from Claude.ai API using Soup (better Cloudflare compatibility)
+            const usageData = await this._fetchFromAPIWithSoup(sessionKey, organizationId, cfClearance);
 
             return usageData;
 
@@ -270,9 +271,10 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
     }
 
     /**
-     * Execute API request using curl to claude.ai
+     * Execute API request using Soup library to claude.ai
      *
-     * Fetches usage data from the official Claude.ai API endpoint.
+     * Uses GNOME's native Soup HTTP library instead of curl subprocess.
+     * This provides better browser-like behavior and may bypass Cloudflare better.
      *
      * Expected API response structure:
      * {
@@ -289,76 +291,116 @@ class ClaudeUsageIndicator extends PanelMenu.Button {
      * @param {string} cfClearance - Cloudflare clearance cookie (optional)
      * @returns {Promise<Object|null>} Parsed usage data or null
      */
-    async _fetchFromAPIWithCurl(sessionKey, organizationId, cfClearance = '') {
-        try {
-            const url = `https://claude.ai/api/organizations/${organizationId}/usage`;
+    async _fetchFromAPIWithSoup(sessionKey, organizationId, cfClearance = '') {
+        return new Promise((resolve, reject) => {
+            try {
+                const url = `https://claude.ai/api/organizations/${organizationId}/usage`;
 
-            // Build cookie string
-            let cookieString = `sessionKey=${sessionKey}; lastActiveOrg=${organizationId}`;
-            if (cfClearance) {
-                cookieString += `; cf_clearance=${cfClearance}`;
+                console.log('[Claude Usage] Fetching from API:', url);
+
+                // Create Soup session with browser-like settings
+                const session = new Soup.Session({
+                    timeout: this._settings.get_int('command-timeout'),
+                    user_agent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
+                });
+
+                // Create HTTP message
+                const message = Soup.Message.new('GET', url);
+
+                // Set headers to mimic browser request
+                const headers = message.get_request_headers();
+                headers.append('Accept', '*/*');
+                headers.append('Accept-Language', 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7');
+                headers.append('anthropic-client-platform', 'web_claude_ai');
+                headers.append('anthropic-client-sha', '32e70e953567275b457146991c741b2f86f4a0f0');
+                headers.append('anthropic-client-version', '1.0.0');
+                headers.append('cache-control', 'no-cache');
+                headers.append('pragma', 'no-cache');
+                headers.append('Referer', 'https://claude.ai/settings/usage');
+                headers.append('sec-fetch-dest', 'empty');
+                headers.append('sec-fetch-mode', 'cors');
+                headers.append('sec-fetch-site', 'same-origin');
+
+                // Build and set Cookie header
+                let cookieString = `sessionKey=${sessionKey}; lastActiveOrg=${organizationId}`;
+                if (cfClearance) {
+                    cookieString += `; cf_clearance=${cfClearance}`;
+                }
+                headers.append('Cookie', cookieString);
+
+                console.log('[Claude Usage] Sending request with cookies:', cookieString.substring(0, 100) + '...');
+
+                // Send async request
+                session.send_and_read_async(
+                    message,
+                    GLib.PRIORITY_DEFAULT,
+                    null,
+                    (session, result) => {
+                        try {
+                            const bytes = session.send_and_read_finish(result);
+                            const decoder = new TextDecoder('utf-8');
+                            const responseText = decoder.decode(bytes.get_data());
+
+                            console.log('[Claude Usage] Response status:', message.get_status());
+                            console.log('[Claude Usage] Response length:', responseText.length);
+                            console.log('[Claude Usage] Response preview:', responseText.substring(0, 200));
+
+                            // Check if response is HTML (Cloudflare challenge)
+                            if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+                                console.log('[Claude Usage] Received HTML instead of JSON (Cloudflare blocking)');
+                                resolve(null);
+                                return;
+                            }
+
+                            // Parse JSON response
+                            const data = JSON.parse(responseText);
+
+                            console.log('[Claude Usage] API response received successfully');
+
+                            // Extract five_hour session data
+                            const fiveHour = data.five_hour;
+
+                            if (!fiveHour) {
+                                console.log('[Claude Usage] No five_hour data in API response');
+                                resolve(null);
+                                return;
+                            }
+
+                            console.log('[Claude Usage] five_hour data:', JSON.stringify(fiveHour));
+
+                            // Extract percentage (utilization is 0-100)
+                            const percentage = fiveHour.utilization ? Number(fiveHour.utilization) : 0;
+
+                            console.log('[Claude Usage] Extracted percentage:', percentage);
+
+                            // Calculate remaining minutes from resets_at timestamp
+                            let remainingMinutes = 0;
+                            if (fiveHour.resets_at) {
+                                const resetsAt = new Date(fiveHour.resets_at);
+                                const now = new Date();
+                                const diffMs = resetsAt - now;
+                                remainingMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+                            }
+
+                            resolve({
+                                percentage,           // Direct percentage from API (100% accurate!)
+                                remainingMinutes,     // Calculated from resets_at
+                                cost: 0,             // Not provided by this API
+                                source: 'api'
+                            });
+
+                        } catch (error) {
+                            console.log('[Claude Usage] Error parsing API response:', error.message);
+                            resolve(null);
+                        }
+                    }
+                );
+
+            } catch (error) {
+                console.log('[Claude Usage] API fetch with Soup failed:', error.message);
+                resolve(null);
             }
-
-            const args = [
-                'curl',
-                '-s',
-                '-H', `Cookie: ${cookieString}`,
-                '-H', 'Content-Type: application/json',
-                '-H', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                '-H', 'Accept: */*',
-                '-H', 'Accept-Language: en-US,en;q=0.9',
-                '-H', 'Referer: https://claude.ai/settings/usage',
-                '-H', 'anthropic-client-platform: web_claude_ai',
-                url
-            ];
-
-            const timeout = this._settings.get_int('command-timeout');
-            const result = await this._executeCommand(args, timeout);
-
-            if (!result || !result.stdout) {
-                return null;
-            }
-
-            const data = JSON.parse(result.stdout);
-
-            console.log('[Claude Usage] API response received:', JSON.stringify(data).substring(0, 200));
-
-            // Extract five_hour session data
-            const fiveHour = data.five_hour;
-
-            if (!fiveHour) {
-                console.log('[Claude Usage] No five_hour data in API response');
-                return null;
-            }
-
-            console.log('[Claude Usage] five_hour data:', JSON.stringify(fiveHour));
-
-            // Extract percentage (utilization is 0-100)
-            // Convert to number explicitly in case it's a string
-            const percentage = fiveHour.utilization ? Number(fiveHour.utilization) : 0;
-
-            console.log('[Claude Usage] Extracted percentage:', percentage);
-
-            // Calculate remaining minutes from resets_at timestamp
-            let remainingMinutes = 0;
-            if (fiveHour.resets_at) {
-                const resetsAt = new Date(fiveHour.resets_at);
-                const now = new Date();
-                const diffMs = resetsAt - now;
-                remainingMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
-            }
-
-            return {
-                percentage,           // Direct percentage from API (100% accurate!)
-                remainingMinutes,     // Calculated from resets_at
-                cost: 0,             // Not provided by this API
-                source: 'api'
-            };
-
-        } catch (error) {
-            console.log('[Claude Usage] API fetch with curl failed:', error.message);
-            return null;
-        }
+        });
     }
 
     async _executeCommand(args, timeoutSeconds) {
