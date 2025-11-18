@@ -15,39 +15,34 @@
 
 ## 📖 Overview
 
-A GNOME Shell extension that displays your Claude Code token usage in real-time on the top bar. Stay informed about your daily usage limits without switching contexts.
+A GNOME Shell extension that displays your Claude Code usage in real-time on the top bar. Stay informed about your 5-hour session limits without switching contexts.
 
 ### Features
 
-- 🔍 **Real-time monitoring** - Track token consumption as you work
-- 📊 **Percentage display** - See your usage as a percentage of daily limit
-- 🔄 **Auto-refresh** - Configurable update intervals (1-60 minutes)
-- 🎯 **Hybrid approach** - Uses `ccusage` with API fallback (when libsoup is available)
-- ⚡ **Lightweight** - Minimal resource footprint
-- 🛠️ **Configurable** - Customize refresh intervals and display options
+- 🎯 **100% Accurate** - Gets exact percentage from claude.ai API
+- ⏱️ **Time Remaining** - Shows hours and minutes until session reset
+- 🔄 **Auto-refresh** - Updates every 1 minute automatically
+- 🌐 **API Integration** - Uses Soup library, successfully bypasses Cloudflare
+- 📊 **Clean Display** - Shows "4h 0m | 3%" in top panel
+- ⚡ **Lightweight** - Native GNOME libraries, minimal resource usage
+- 🛠️ **Easy Configuration** - Helper script for managing settings
 
 ---
 
 ## 📋 Prerequisites
 
-### Required
-
 1. **GNOME Shell 45+** (tested on 46)
-2. **Claude Code** authenticated:
-   ```bash
-   claude login
-   ```
-3. **ccusage** installed:
-   ```bash
-   npm install -g ccusage
-   ```
+2. **Python 3** (for cookie extraction script)
+3. **Active claude.ai session** (logged in browser)
 
-### Optional
-
-- **libsoup** for API fallback:
+**Optional (for fallback):**
+- **ccusage** for offline time display:
   ```bash
-  sudo apt install gir1.2-soup-3.0
+  npm install -g ccusage
   ```
+
+**Built-in (no installation needed):**
+- Soup 3.0 HTTP library (included with GNOME)
 
 ---
 
@@ -78,13 +73,27 @@ cd scripts
 
 ### Post-Installation
 
-1. **Restart GNOME Shell:**
+1. **Extract cookies from your browser:**
+   ```bash
+   python3 scripts/extract-token.py
+   ```
+   Follow the instructions to copy cookies from your logged-in claude.ai browser session.
+
+2. **Restart GNOME Shell:**
    - **X11:** Press `Alt+F2`, type `r`, press Enter
    - **Wayland:** Log out and log back in
 
-2. **Enable the extension:**
+3. **Enable the extension:**
    ```bash
    gnome-extensions enable claude-usage-indicator@hayashirafael
+   ```
+
+4. **Verify it works:**
+   ```bash
+   # Test API access
+   gjs scripts/test-soup-api.js
+
+   # Should show: ✅ API call successful!
    ```
 
 ---
@@ -94,29 +103,54 @@ cd scripts
 Once enabled, look at your **top bar** (right side):
 
 ```
-Claude: 30.5%
+Claude: 4h 0m | 3%
+        ↑        ↑
+   time left   exact %
+             from API
 ```
 
-The extension will automatically refresh based on your configured interval (default: 3 minutes).
+The extension automatically refreshes every 1 minute with the latest data from claude.ai.
+
+### What the Display Shows
+
+- **Time remaining**: Hours and minutes until your 5-hour session resets
+- **Percentage**: Exact usage percentage from claude.ai (100% accuracy)
+- **Auto-updates**: Refreshes every 60 seconds
 
 ---
 
 ## ⚙️ Configuration
 
-Adjust settings using `gsettings`:
+Use the helper script for easy configuration:
 
 ```bash
-# Change refresh interval (in minutes)
-gsettings set org.gnome.shell.extensions.claude-usage-indicator refresh-interval 5
+cd scripts
 
-# Change command timeout (in seconds)
-gsettings set org.gnome.shell.extensions.claude-usage-indicator command-timeout 30
+# List all settings
+./settings.sh list
 
-# Toggle percentage display
-gsettings set org.gnome.shell.extensions.claude-usage-indicator show-percentage true
+# Enable API (recommended)
+./settings.sh enable-api
 
-# Toggle API fallback (requires libsoup)
-gsettings set org.gnome.shell.extensions.claude-usage-indicator use-api-fallback true
+# Change refresh interval (1-60 minutes)
+./settings.sh set refresh-interval 2
+
+# Reload extension after changes
+./dev-reload.sh
+```
+
+### Manual Configuration (Advanced)
+
+You can also use `gsettings` directly:
+
+```bash
+# Enable API
+gsettings --schemadir /path/to/extension/schemas/ \
+  set org.gnome.shell.extensions.claude-usage-indicator use-api-fallback true
+
+# Change refresh interval
+gsettings --schemadir /path/to/extension/schemas/ \
+  set org.gnome.shell.extensions.claude-usage-indicator refresh-interval 2
 ```
 
 ---
