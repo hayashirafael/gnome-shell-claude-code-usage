@@ -13,22 +13,34 @@ The Claude usage percentage calculation uses **proprietary dynamic algorithms** 
 
 ## Setup Methods
 
-### Method 1: Automatic Token Extraction (Recommended)
+### Method 1: Bookmarklet Extraction (Recommended) ⭐
 
-Run the Python script that extracts your session token automatically:
+Run the improved Python script with **3 automatic methods**:
 
 ```bash
 cd scripts
 python3 extract-token.py
 ```
 
-This will:
-1. Start a local web server
-2. Open your browser
-3. Attempt to extract the Claude.ai session token automatically
-4. Save it to `~/.config/claude/credentials.json`
+This will open a page in your browser with **three extraction options**:
 
-If automatic extraction fails, follow the manual steps shown in the browser.
+**Option A - Bookmarklet (Easiest!):**
+1. Drag the purple "Extract Claude Cookies" button to your bookmarks bar
+2. Open claude.ai in a new tab (logged in)
+3. Click the bookmarklet in your bookmarks bar
+4. Done! Cookies are automatically extracted and saved
+
+**Option B - Browser Auto-Detection:**
+1. Click the "Auto-detect Browser Cookies" button
+2. Script will try to read cookies directly from Chrome/Chromium database
+3. Works if cookies are not encrypted
+
+**Option C - Manual Extraction:**
+1. Follow the step-by-step instructions shown in the browser
+2. Copy cookies from DevTools manually
+3. Paste into the form fields
+
+The bookmarklet method is **highly recommended** as it works reliably across all browsers and requires minimal user interaction.
 
 ### Method 2: Manual Setup (Alternative)
 

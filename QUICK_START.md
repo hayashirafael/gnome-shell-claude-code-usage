@@ -81,10 +81,15 @@ cd scripts
 
 ### Cookies expired
 
-Re-extract fresh cookies:
+Re-extract fresh cookies using the improved bookmarklet method:
 ```bash
 python3 scripts/extract-token.py
 ```
+
+**New in v2.0:**
+- **Bookmarklet extraction** - Drag button to bookmarks, click on claude.ai (easiest!)
+- **Browser auto-detection** - Reads cookies directly from Chrome/Chromium
+- **Improved manual UI** - Step-by-step visual instructions
 
 Then immediately test:
 ```bash
