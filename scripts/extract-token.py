@@ -70,7 +70,8 @@ BOOKMARKLET_CODE = """
 
 # Convert to bookmarklet format
 import urllib.parse
-BOOKMARKLET = "javascript:" + urllib.parse.quote(BOOKMARKLET_CODE.replace('\n', ''))
+# Replace newlines with spaces to avoid JavaScript syntax errors
+BOOKMARKLET = "javascript:" + urllib.parse.quote(BOOKMARKLET_CODE.replace('\n', ' '))
 
 # HTML page with bookmarklet instructions
 EXTRACTION_PAGE = f"""<!DOCTYPE html>

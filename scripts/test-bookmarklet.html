@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Bookmarklet</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        code {
+            background: #eee;
+            padding: 2px 5px;
+            border-radius: 3px;
+            display: block;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Bookmarklet Test Page</h1>
+
+    <div class="section">
+        <h2>Step 1: Set Test Cookies</h2>
+        <p>Click this button to set fake claude.ai-like cookies for testing:</p>
+        <button onclick="setTestCookies()">Set Test Cookies</button>
+        <div id="cookie-status"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Test Bookmarklet Code</h2>
+        <p>Click this button to run the bookmarklet code:</p>
+        <button onclick="runBookmarkletCode()">Run Bookmarklet Code</button>
+        <div id="bookmarklet-result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 3: View Extracted Data</h2>
+        <div id="extracted-data"></div>
+    </div>
+
+    <div class="section">
+        <h2>Actual Bookmarklet URL</h2>
+        <p>This is what would be in the bookmarklet:</p>
+        <code id="bookmarklet-url"></code>
+    </div>
+
+    <script>
+        // Set test cookies
+        function setTestCookies() {
+            document.cookie = "sessionKey=sk-ant-sid01-test-token-12345; path=/";
+            document.cookie = "lastActiveOrg=732b3b29-test-org-uuid; path=/";
+            document.cookie = "cf_clearance=test-clearance-token; path=/";
+
+            document.getElementById('cookie-status').innerHTML = '<span class="success">✅ Test cookies set!</span>';
+
+            // Show current cookies
+            setTimeout(() => {
+                document.getElementById('cookie-status').innerHTML += '<br><br><strong>Current cookies:</strong><br>' +
+                    document.cookie.split('; ').join('<br>');
+            }, 100);
+        }
+
+        // The actual bookmarklet code (from extract-token.py)
+        function runBookmarkletCode() {
+            const resultDiv = document.getElementById('bookmarklet-result');
+            resultDiv.innerHTML = '<em>Running...</em>';
+
+            try {
+                (function() {
+                    function getCookie(name) {
+                        const value = '; ' + document.cookie;
+                        const parts = value.split('; ' + name + '=');
+                        if (parts.length === 2) return parts.pop().split(';').shift();
+                        return null;
+                    }
+
+                    const sessionKey = getCookie('sessionKey');
+                    const orgId = getCookie('lastActiveOrg');
+                    const cfClearance = getCookie('cf_clearance');
+
+                    // Show what was extracted
+                    document.getElementById('extracted-data').innerHTML = `
+                        <strong>Extracted Cookies:</strong><br>
+                        sessionKey: <code>${sessionKey || 'NOT FOUND'}</code><br>
+                        lastActiveOrg: <code>${orgId || 'NOT FOUND'}</code><br>
+                        cf_clearance: <code>${cfClearance || 'NOT FOUND'}</code>
+                    `;
+
+                    if (!sessionKey || !orgId) {
+                        resultDiv.innerHTML = '<span class="error">❌ Cookies not found! Make sure you set test cookies first.</span>';
+                        return;
+                    }
+
+                    // Try to send to local server
+                    fetch('http://localhost:8765/receive-cookies', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_key: sessionKey,
+                            organization_id: orgId,
+                            cf_clearance: cfClearance || ''
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            resultDiv.innerHTML = '<span class="success">✅ Cookies extracted and sent successfully!</span>';
+                        } else {
+                            resultDiv.innerHTML = '<span class="error">❌ Server error: ' + data.error + '</span>';
+                        }
+                    })
+                    .catch(err => {
+                        resultDiv.innerHTML = '<span class="error">❌ Error connecting to local server (http://localhost:8765).<br>Make sure Python script is running!<br><br>Error: ' + err.message + '</span>';
+                    });
+                })();
+            } catch (err) {
+                resultDiv.innerHTML = '<span class="error">❌ JavaScript error: ' + err.message + '</span>';
+            }
+        }
+
+        // Generate bookmarklet URL on load
+        window.onload = function() {
+            const code = `(function() { function getCookie(name) { const value = '; ' + document.cookie; const parts = value.split('; ' + name + '='); if (parts.length === 2) return parts.pop().split(';').shift(); return null; } const sessionKey = getCookie('sessionKey'); const orgId = getCookie('lastActiveOrg'); const cfClearance = getCookie('cf_clearance'); if (!sessionKey || !orgId) { alert('❌ Cookies not found! Make sure you are logged in to claude.ai'); return; } fetch('http://localhost:8765/receive-cookies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_key: sessionKey, organization_id: orgId, cf_clearance: cfClearance || '' }) }) .then(response => response.json()) .then(data => { if (data.success) { alert('✅ Cookies extracted successfully! You can close this tab now.'); } else { alert('❌ Error: ' + data.error); } }) .catch(err => { alert('❌ Error connecting to local server. Make sure the Python script is running!\\n\\nError: ' + err.message); }); })();`;
+
+            const bookmarkletUrl = 'javascript:' + encodeURIComponent(code);
+            document.getElementById('bookmarklet-url').textContent = bookmarkletUrl;
+        };
+    </script>
+</body>
+</html>
